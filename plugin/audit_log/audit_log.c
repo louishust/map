@@ -34,7 +34,7 @@
 #define PLUGIN_VERSION 0x0002
 
 
-enum audit_log_policy_t { ALL, NONE, LOGINS, QUERIES };
+enum audit_log_policy_t { ALL, NONE, LOGINS, QUERIES, CUSTOM };
 enum audit_log_strategy_t
   { ASYNCHRONOUS, PERFORMANCE, SEMISYNCHRONOUS, SYNCHRONOUS };
 enum audit_log_format_t { OLD, NEW, JSON, CSV };
@@ -670,11 +670,106 @@ int is_event_class_allowed_by_policy(unsigned int class,
     0,                                                             /* NONE */
     MYSQL_AUDIT_CONNECTION_CLASSMASK,                              /* LOGINS */
     MYSQL_AUDIT_GENERAL_CLASSMASK,                                 /* QUERIES */
+    MYSQL_AUDIT_GENERAL_CLASSMASK | MYSQL_AUDIT_CONNECTION_CLASSMASK, /* CUSTOM */
   };
 
   return (class_mask[policy] & (1 << class)) != 0;
 }
 
+enum enum_sql_command {
+  SQLCOM_SET_OPTION,
+  SQLCOM_GRANT,
+  SQLCOM_REVOKE,
+  SQLCOM_REVOKE_ALL,
+  SQLCOM_CREATE_TABLE,
+  SQLCOM_ALTER_TABLE,
+  SQLCOM_DROP_TABLE,
+  SQLCOM_TRUNCATE,
+  SQLCOM_CREATE_INDEX,
+  SQLCOM_DROP_INDEX,
+  SQLCOM_END
+};
+
+struct st_sql_to_command
+{
+  const char *str;
+  enum enum_sql_command sql_command;
+};
+
+typedef struct st_sql_to_command SQL_COMMAND;
+
+
+SQL_COMMAND mysql_statement_names[] = {
+  {"set_option", SQLCOM_SET_OPTION},
+  {"grant", SQLCOM_GRANT},
+  {"revoke", SQLCOM_REVOKE},
+  {"revoke_all", SQLCOM_REVOKE_ALL},
+  {"create_table", SQLCOM_CREATE_TABLE},
+  {"alter_table", SQLCOM_ALTER_TABLE},
+  {"drop_table", SQLCOM_DROP_TABLE},
+  {"truncate", SQLCOM_TRUNCATE},
+  {"create_index", SQLCOM_CREATE_INDEX},
+  {"drop_index", SQLCOM_DROP_INDEX},
+};
+
+enum enum_sql_command get_sql_command(const char* sql)
+{
+  int i= 0;
+  int size= sizeof(mysql_statement_names)/sizeof(SQL_COMMAND);
+  for (; i < size; i++) {
+    if (strcmp(sql, mysql_statement_names[i].str) == 0) {
+      return mysql_statement_names[i].sql_command;
+    }
+  }
+
+  return SQLCOM_END;
+}
+
+
+static
+int is_global_set(const struct mysql_event_general* event)
+{
+  const char *p= event->general_query;
+  unsigned int i=0;
+
+  if (event->general_query_length < 10)
+    return 0;
+
+  for (i=0; i< event->general_query_length - 6; p++, i++) {
+    if ((*p == 'g' || *p == 'G') &&
+        (*(p+1) == 'l' || *(p+1) == 'L') &&
+        (*(p+2) == 'o' || *(p+2) == 'O') &&
+        (*(p+3) == 'b' || *(p+3) == 'B') &&
+        (*(p+4) == 'a' || *(p+4) == 'A') &&
+        (*(p+5) == 'l' || *(p+5) == 'L')) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static
+int is_general_event_allowed_by_custom(const struct mysql_event_general *event)
+{
+  enum enum_sql_command sql_command= get_sql_command(event->general_sql_command.str);
+
+  switch (sql_command) {
+  case SQLCOM_SET_OPTION:
+    return is_global_set(event);
+  case SQLCOM_CREATE_TABLE:
+  case SQLCOM_ALTER_TABLE:
+  case SQLCOM_DROP_TABLE:
+  case SQLCOM_CREATE_INDEX:
+  case SQLCOM_DROP_INDEX:
+  case SQLCOM_GRANT:
+  case SQLCOM_REVOKE:
+  case SQLCOM_REVOKE_ALL:
+  case SQLCOM_TRUNCATE:
+    return 1;
+  default:
+    return 0;
+  }
+}
 
 static
 void audit_log_notify(MYSQL_THD thd __attribute__((unused)),
@@ -691,6 +786,10 @@ void audit_log_notify(MYSQL_THD thd __attribute__((unused)),
   {
     const struct mysql_event_general *event_general=
       (const struct mysql_event_general *) event;
+    if (audit_log_policy == CUSTOM &&
+        !is_general_event_allowed_by_custom(event))
+        return;
+
     switch (event_general->event_subclass)
     {
     case MYSQL_AUDIT_GENERAL_STATUS:
@@ -744,7 +843,7 @@ static MYSQL_SYSVAR_STR(file, audit_log_file,
   "The name of the log file.", NULL, NULL, default_audit_log_file);
 
 static const char *audit_log_policy_names[]=
-                    { "ALL", "NONE", "LOGINS", "QUERIES", 0 };
+                    { "ALL", "NONE", "LOGINS", "QUERIES", "CUSTOM", 0 };
 
 static TYPELIB audit_log_policy_typelib=
 {
@@ -944,7 +1043,7 @@ mysql_declare_plugin(audit_log)
   MYSQL_AUDIT_PLUGIN,                     /* type                            */
   &audit_log_descriptor,                  /* descriptor                      */
   "audit_log",                            /* name                            */
-  "Percona LLC and/or its affiliates.",   /* author                          */
+  "GreatOpenSource",   /* author                          */
   "Audit log",                            /* description                     */
   PLUGIN_LICENSE_GPL,
   audit_log_plugin_init,                  /* init function (when loaded)     */
