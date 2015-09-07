@@ -687,6 +687,8 @@ enum enum_sql_command {
   SQLCOM_TRUNCATE,
   SQLCOM_CREATE_INDEX,
   SQLCOM_DROP_INDEX,
+  SQLCOM_CREATE_USER,
+  SQLCOM_DROP_USER,
   SQLCOM_END
 };
 
@@ -710,6 +712,8 @@ SQL_COMMAND mysql_statement_names[] = {
   {"truncate", SQLCOM_TRUNCATE},
   {"create_index", SQLCOM_CREATE_INDEX},
   {"drop_index", SQLCOM_DROP_INDEX},
+  {"create_user", SQLCOM_CREATE_USER},
+  {"drop_user", SQLCOM_DROP_USER},
 };
 
 enum enum_sql_command get_sql_command(const char* sql)
@@ -765,6 +769,8 @@ int is_general_event_allowed_by_custom(const struct mysql_event_general *event)
   case SQLCOM_REVOKE:
   case SQLCOM_REVOKE_ALL:
   case SQLCOM_TRUNCATE:
+  case SQLCOM_CREATE_USER:
+  case SQLCOM_DROP_USER:
     return 1;
   default:
     return 0;
