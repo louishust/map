@@ -72,3 +72,9 @@ set names utf8;
 create database db1;
 alter database db1 CHARACTER SET utf8mb4;
 drop database db1;
+
+CREATE SERVER s
+FOREIGN DATA WRAPPER mysql
+OPTIONS (USER 'Remote', HOST '192.168.1.106', DATABASE 'test');
+ALTER SERVER s OPTIONS (USER 'sally');
+DROP SERVER s;

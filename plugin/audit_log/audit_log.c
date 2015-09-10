@@ -692,6 +692,9 @@ enum enum_sql_command {
   SQLCOM_CREATE_DB,
   SQLCOM_ALTER_DB,
   SQLCOM_DROP_DB,
+  SQLCOM_CREATE_SERVER,
+  SQLCOM_ALTER_SERVER,
+  SQLCOM_DROP_SERVER,
   SQLCOM_END
 };
 
@@ -720,6 +723,9 @@ SQL_COMMAND mysql_statement_names[] = {
   {"create_db", SQLCOM_CREATE_DB},
   {"alter_db", SQLCOM_ALTER_DB},
   {"drop_db", SQLCOM_DROP_DB},
+  {"create_server", SQLCOM_CREATE_SERVER},
+  {"alter_server", SQLCOM_ALTER_SERVER},
+  {"drop_server", SQLCOM_DROP_SERVER},
 };
 
 enum enum_sql_command get_sql_command(const char* sql)
@@ -780,6 +786,9 @@ int is_general_event_allowed_by_custom(const struct mysql_event_general *event)
   case SQLCOM_CREATE_DB:
   case SQLCOM_ALTER_DB:
   case SQLCOM_DROP_DB:
+  case SQLCOM_CREATE_SERVER:
+  case SQLCOM_ALTER_SERVER:
+  case SQLCOM_DROP_SERVER:
     return 1;
   default:
     return 0;
