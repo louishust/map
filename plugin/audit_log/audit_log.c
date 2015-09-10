@@ -689,6 +689,9 @@ enum enum_sql_command {
   SQLCOM_DROP_INDEX,
   SQLCOM_CREATE_USER,
   SQLCOM_DROP_USER,
+  SQLCOM_CREATE_DB,
+  SQLCOM_ALTER_DB,
+  SQLCOM_DROP_DB,
   SQLCOM_END
 };
 
@@ -714,6 +717,9 @@ SQL_COMMAND mysql_statement_names[] = {
   {"drop_index", SQLCOM_DROP_INDEX},
   {"create_user", SQLCOM_CREATE_USER},
   {"drop_user", SQLCOM_DROP_USER},
+  {"create_db", SQLCOM_CREATE_DB},
+  {"alter_db", SQLCOM_ALTER_DB},
+  {"drop_db", SQLCOM_DROP_DB},
 };
 
 enum enum_sql_command get_sql_command(const char* sql)
@@ -771,6 +777,9 @@ int is_general_event_allowed_by_custom(const struct mysql_event_general *event)
   case SQLCOM_TRUNCATE:
   case SQLCOM_CREATE_USER:
   case SQLCOM_DROP_USER:
+  case SQLCOM_CREATE_DB:
+  case SQLCOM_ALTER_DB:
+  case SQLCOM_DROP_DB:
     return 1;
   default:
     return 0;

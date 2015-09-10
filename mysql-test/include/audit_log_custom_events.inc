@@ -69,3 +69,6 @@ select * from t1;
 drop table t1;
 set global max_connections=151;
 set names utf8;
+create database db1;
+alter database db1 CHARACTER SET utf8mb4;
+drop database db1;
