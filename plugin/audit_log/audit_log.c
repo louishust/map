@@ -56,7 +56,7 @@ char audit_log_flush= FALSE;
 ulong audit_log_format= OLD;
 ulong audit_log_handler= HANDLER_FILE;
 char *audit_log_syslog_ident;
-char default_audit_log_syslog_ident[] = "percona-audit";
+char default_audit_log_syslog_ident[] = "greatopensource-audit";
 ulong audit_log_syslog_facility= 0;
 ulong audit_log_syslog_priority= 0;
 
