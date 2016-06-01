@@ -877,7 +877,7 @@ static TYPELIB audit_log_policy_typelib=
 
 static MYSQL_SYSVAR_ENUM(policy, audit_log_policy, PLUGIN_VAR_RQCMDARG,
        "The policy controlling the information written by the audit log "
-       "plugin to its log file.", NULL, NULL, ALL,
+       "plugin to its log file.", NULL, NULL, CUSTOM,
        &audit_log_policy_typelib);
 
 static const char *audit_log_strategy_names[]=
