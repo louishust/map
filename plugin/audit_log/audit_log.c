@@ -60,6 +60,168 @@ char default_audit_log_syslog_ident[] = "greatopensource-audit";
 ulong audit_log_syslog_facility= 0;
 ulong audit_log_syslog_priority= 0;
 
+unsigned int class_mask[]=
+{
+  MYSQL_AUDIT_GENERAL_CLASSMASK | MYSQL_AUDIT_CONNECTION_CLASSMASK, /* ALL */
+  0,                                                             /* NONE */
+  MYSQL_AUDIT_CONNECTION_CLASSMASK,                              /* LOGINS */
+  MYSQL_AUDIT_GENERAL_CLASSMASK,                                 /* QUERIES */
+  MYSQL_AUDIT_GENERAL_CLASSMASK | MYSQL_AUDIT_CONNECTION_CLASSMASK, /* CUSTOM */
+};
+
+
+#define MAX_EVENT_NAME_LEN 63
+char *audit_log_event;
+char audit_log_event_str[4096] = {0};
+char audit_log_event_tmp[2048] = {0};
+
+struct st_event_flag {
+  const char *str;
+  my_bool flag;
+  my_bool tmp_flag;
+};
+typedef struct st_event_flag EVENT_FLAG;
+
+/** this array should be sorted in lexicographical order */
+EVENT_FLAG event_flags[] = {
+  {"alter_db", 0, 0},
+  {"alter_event", 0, 0},
+  {"alter_function", 0, 0},
+  {"alter_procedure", 0, 0},
+  {"alter_server", 0, 0},
+  {"alter_table", 0, 0},
+  {"alter_tablespace", 0, 0},
+  {"analyze", 0, 0},
+  {"begin", 0, 0},
+  {"binlog", 0, 0},
+  {"call_procedure", 0, 0},
+  {"change_db", 0, 0},
+  {"change_master", 0, 0},
+  {"check", 0, 0},
+  {"checksum", 0, 0},
+  {"commit", 0, 0},
+  {"connection", 0, 0},
+  {"create_db", 0, 0},
+  {"create_event", 0, 0},
+  {"create_function", 0, 0},
+  {"create_index", 0, 0},
+  {"create_procedure", 0, 0},
+  {"create_server", 0, 0},
+  {"create_table", 0, 0},
+  {"create_trigger", 0, 0},
+  {"create_udf", 0, 0},
+  {"create_user", 0, 0},
+  {"create_view", 0, 0},
+  {"dealloc_sql", 0, 0},
+  {"delete", 0, 0},
+  {"delete_multi", 0, 0},
+  {"do", 0, 0},
+  {"drop_db", 0, 0},
+  {"drop_event", 0, 0},
+  {"drop_function", 0, 0},
+  {"drop_index", 0, 0},
+  {"drop_procedure", 0, 0},
+  {"drop_server", 0, 0},
+  {"drop_table", 0, 0},
+  {"drop_trigger", 0, 0},
+  {"drop_user", 0, 0},
+  {"drop_view", 0, 0},
+  {"empty_query", 0, 0},
+  {"execute_sql", 0, 0},
+  {"flush", 0, 0},
+  {"grant", 0, 0},
+  {"insert", 0, 0},
+  {"insert_select", 0, 0},
+  {"install_plugin", 0, 0},
+  {"kill", 0, 0},
+  {"load", 0, 0},
+  {"lock_tables", 0, 0},
+  {"optimize", 0, 0},
+  {"preload_keys", 0, 0},
+  {"prepare_sql", 0, 0},
+  {"purge", 0, 0},
+  {"purge_before_date", 0, 0},
+  {"release_savepoint", 0, 0},
+  {"rename_table", 0, 0},
+  {"rename_user", 0, 0},
+  {"repair", 0, 0},
+  {"replace", 0, 0},
+  {"replace_select", 0, 0},
+  {"reset", 0, 0},
+  {"resignal", 0, 0},
+  {"revoke", 0, 0},
+  {"revoke_all", 0, 0},
+  {"rollback", 0, 0},
+  {"rollback_to_savepoint", 0, 0},
+  {"savepoint", 0, 0},
+  {"select", 0, 0},
+  {"set_option", 0, 0},
+  {"signal", 0, 0},
+  {"show_authors", 0, 0 },
+  {"show_binlog_events", 0, 0},
+  {"show_binlogs", 0, 0},
+  {"show_charsets", 0, 0},
+  {"show_collations", 0, 0},
+  {"show_contributors", 0, 0},
+  {"show_create_db", 0, 0},
+  {"show_create_event", 0, 0},
+  {"show_create_func", 0, 0},
+  {"show_create_proc", 0, 0},
+  {"show_create_table", 0, 0},
+  {"show_create_trigger", 0, 0},
+  {"show_databases", 0, 0},
+  {"show_engine_logs", 0, 0},
+  {"show_engine_mutex", 0, 0},
+  {"show_engine_status", 0, 0},
+  {"show_events", 0, 0},
+  {"show_errors", 0, 0},
+  {"show_fields", 0, 0},
+  {"show_function_code", 0, 0},
+  {"show_function_status", 0, 0},
+  {"show_grants", 0, 0},
+  {"show_keys", 0, 0},
+  {"show_master_status", 0, 0},
+  {"show_open_tables", 0, 0},
+  {"show_plugins", 0, 0},
+  {"show_privileges", 0, 0},
+  {"show_procedure_code", 0, 0},
+  {"show_procedure_status", 0, 0},
+  {"show_processlist", 0, 0},
+  {"show_profile", 0, 0},
+  {"show_profiles", 0, 0},
+  {"show_relaylog_events", 0, 0},
+  {"show_slave_hosts", 0, 0},
+  {"show_slave_status", 0, 0},
+  {"show_status", 0, 0},
+  {"show_storage_engines", 0, 0},
+  {"show_table_status", 0, 0},
+  {"show_tables", 0, 0},
+  {"show_triggers", 0, 0},
+  {"show_variables", 0, 0},
+  {"show_warnings", 0, 0},
+  {"slave_start", 0, 0},
+  {"slave_stop", 0, 0},
+  {"stmt_close", 0, 0},
+  {"stmt_execute", 0, 0},
+  {"stmt_fetch", 0, 0},
+  {"stmt_prepare", 0, 0},
+  {"stmt_reprepare", 0, 0},
+  {"stmt_reset", 0, 0},
+  {"stmt_send_long_data", 0, 0},
+  {"truncate", 0, 0},
+  {"uninstall_plugin", 0, 0},
+  {"unlock_tables", 0, 0},
+  {"update", 0, 0},
+  {"update_multi", 0, 0},
+  {"xa_commit", 0, 0},
+  {"xa_end", 0, 0},
+  {"xa_prepare", 0, 0},
+  {"xa_recover", 0, 0},
+  {"xa_rollback", 0, 0},
+  {"xa_start", 0, 0},
+};
+int event_flag_num = sizeof(event_flags) / sizeof(EVENT_FLAG);
+
 
 static int audit_log_syslog_facility_codes[]=
   { LOG_USER,   LOG_AUTHPRIV, LOG_CRON,   LOG_DAEMON, LOG_FTP,
@@ -92,6 +254,141 @@ static const char *audit_log_syslog_priority_names[]=
   { "LOG_INFO",   "LOG_ALERT", "LOG_CRIT", "LOG_ERR", "LOG_WARNING",
     "LOG_NOTICE", "LOG_EMERG", "LOG_DEBUG", 0 };
 
+void reset_log_event_tmp_flag()
+{
+  int i = 0;
+  for (; i < event_flag_num; i++) {
+    event_flags[i].tmp_flag = 0;
+  }
+}
+
+int find_log_event_by_name(const char* event_name) {
+  int low = 0, high = event_flag_num - 1;
+  int mid = (high + low ) / 2;
+  int res = strcmp(event_flags[mid].str, event_name);
+
+  while (res != 0 && low <= high) {
+    if (res < 0) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+    mid = (high + low) /2;
+    res = strcmp(event_flags[mid].str, event_name);
+  }
+
+  if (res == 0) {
+    return mid;
+  } else {
+    return -1;
+  }
+}
+
+void reset_log_event_flag_mask()
+{
+  int i = 0;
+  int connection_event_idx;
+  for (; i < event_flag_num; i++) {
+    event_flags[i].flag = event_flags[i].tmp_flag;
+  }
+
+  connection_event_idx = find_log_event_by_name("connection");
+  class_mask[CUSTOM] = event_flags[connection_event_idx].flag ?
+    (MYSQL_AUDIT_GENERAL_CLASSMASK | MYSQL_AUDIT_CONNECTION_CLASSMASK) : (MYSQL_AUDIT_GENERAL_CLASSMASK);
+}
+
+int check_log_event(const char* event) {
+  char *p = audit_log_event_tmp;
+  char *q = p;
+  char event_name[64];
+  int event_len;
+  int event_idx;
+
+  /** delete all space */
+  while (*event && *event != ' ') {
+    *p++ = *event++;
+  }
+  *p = '\0';
+
+  reset_log_event_tmp_flag();
+  p = audit_log_event_tmp;
+  while (*p) {
+    q = p;
+    while (*p && *p != ',')
+      p++;
+
+    event_len = p - q;
+    if (event_len > MAX_EVENT_NAME_LEN) {
+      return 1;
+    }
+
+    memcpy(event_name, q, event_len);
+    event_name[event_len] = '\0';
+
+    event_idx = find_log_event_by_name(event_name);
+    if (event_idx == -1) {
+      return 1;
+    } else {
+      event_flags[event_idx].tmp_flag = 1;
+    }
+
+    if (!*p)
+      break;
+  }
+
+  return 0;
+}
+
+static
+int
+audit_log_event_validate(
+          MYSQL_THD thd __attribute__((unused)),
+          struct st_mysql_sys_var *var __attribute__((unused)),
+          void* save, struct st_mysql_value* value)
+{
+  const char* event_input __attribute__((unused));
+  char buff[2048];
+  int len = sizeof(buff);
+  event_input = value->val_str(value, buff, &len);
+  if (check_log_event(event_input)) {
+    *(const char**)(save) = NULL;
+    return 1;
+  } else {
+    *(const char**)(save) = audit_log_event_tmp;
+    return 0;
+  }
+}
+
+static
+void
+audit_log_event_update(
+          MYSQL_THD thd __attribute__((unused)),
+          struct st_mysql_sys_var *var __attribute__((unused)),
+          void *var_ptr __attribute__((unused)),
+          const void *save __attribute__((unused)))
+{
+  int i = 0;
+  char *p = audit_log_event_str;
+
+  reset_log_event_flag_mask();
+
+  for (; i < event_flag_num; i++) {
+    if (event_flags[i].flag) {
+      strcpy(p, event_flags[i].str);
+      p += strlen(event_flags[i].str);
+    }
+  }
+
+  for (; i < event_flag_num; i++) {
+    if (event_flags[i].flag) {
+      *p++ = ',';
+      strcpy(p, event_flags[i].str);
+      p += strlen(event_flags[i].str);
+    }
+  }
+
+  *(const char**)(var_ptr) = audit_log_event_str;
+}
 
 static
 void init_record_id(off_t size)
@@ -627,6 +924,18 @@ int reopen_log_file()
 }
 
 
+my_bool init_audit_log_event_flags()
+{
+  if (check_log_event(audit_log_event)) {
+    fprintf_timestamp(stderr);
+    fprintf(stderr, "[ERROR] Audit Log: wrong audit_log_event\n");
+    return(1);
+  }
+
+  reset_log_event_flag_mask();
+  return 0;
+}
+
 static
 int audit_log_plugin_init(void *arg __attribute__((unused)))
 {
@@ -637,6 +946,10 @@ int audit_log_plugin_init(void *arg __attribute__((unused)))
 
   if (init_new_log_file())
     return(1);
+
+  if (init_audit_log_event_flags()) {
+    return 1;
+  }
 
   len= audit_log_audit_record(buf, sizeof(buf), "Audit", time(NULL));
   audit_log_write(buf, len);
@@ -664,135 +977,14 @@ static
 int is_event_class_allowed_by_policy(unsigned int class,
                                      enum audit_log_policy_t policy)
 {
-  static unsigned int class_mask[]=
-  {
-    MYSQL_AUDIT_GENERAL_CLASSMASK | MYSQL_AUDIT_CONNECTION_CLASSMASK, /* ALL */
-    0,                                                             /* NONE */
-    MYSQL_AUDIT_CONNECTION_CLASSMASK,                              /* LOGINS */
-    MYSQL_AUDIT_GENERAL_CLASSMASK,                                 /* QUERIES */
-    MYSQL_AUDIT_GENERAL_CLASSMASK | MYSQL_AUDIT_CONNECTION_CLASSMASK, /* CUSTOM */
-  };
-
   return (class_mask[policy] & (1 << class)) != 0;
 }
 
-enum enum_sql_command {
-  SQLCOM_SET_OPTION,
-  SQLCOM_GRANT,
-  SQLCOM_REVOKE,
-  SQLCOM_REVOKE_ALL,
-  SQLCOM_CREATE_TABLE,
-  SQLCOM_ALTER_TABLE,
-  SQLCOM_DROP_TABLE,
-  SQLCOM_TRUNCATE,
-  SQLCOM_CREATE_INDEX,
-  SQLCOM_DROP_INDEX,
-  SQLCOM_CREATE_USER,
-  SQLCOM_DROP_USER,
-  SQLCOM_CREATE_DB,
-  SQLCOM_ALTER_DB,
-  SQLCOM_DROP_DB,
-  SQLCOM_CREATE_SERVER,
-  SQLCOM_ALTER_SERVER,
-  SQLCOM_DROP_SERVER,
-  SQLCOM_END
-};
-
-struct st_sql_to_command
-{
-  const char *str;
-  enum enum_sql_command sql_command;
-};
-
-typedef struct st_sql_to_command SQL_COMMAND;
-
-
-SQL_COMMAND mysql_statement_names[] = {
-  {"set_option", SQLCOM_SET_OPTION},
-  {"grant", SQLCOM_GRANT},
-  {"revoke", SQLCOM_REVOKE},
-  {"revoke_all", SQLCOM_REVOKE_ALL},
-  {"create_table", SQLCOM_CREATE_TABLE},
-  {"alter_table", SQLCOM_ALTER_TABLE},
-  {"drop_table", SQLCOM_DROP_TABLE},
-  {"truncate", SQLCOM_TRUNCATE},
-  {"create_index", SQLCOM_CREATE_INDEX},
-  {"drop_index", SQLCOM_DROP_INDEX},
-  {"create_user", SQLCOM_CREATE_USER},
-  {"drop_user", SQLCOM_DROP_USER},
-  {"create_db", SQLCOM_CREATE_DB},
-  {"alter_db", SQLCOM_ALTER_DB},
-  {"drop_db", SQLCOM_DROP_DB},
-  {"create_server", SQLCOM_CREATE_SERVER},
-  {"alter_server", SQLCOM_ALTER_SERVER},
-  {"drop_server", SQLCOM_DROP_SERVER},
-};
-
-enum enum_sql_command get_sql_command(const char* sql)
-{
-  int i= 0;
-  int size= sizeof(mysql_statement_names)/sizeof(SQL_COMMAND);
-  for (; i < size; i++) {
-    if (strcmp(sql, mysql_statement_names[i].str) == 0) {
-      return mysql_statement_names[i].sql_command;
-    }
-  }
-
-  return SQLCOM_END;
-}
-
-
 static
-int is_global_set(const struct mysql_event_general* event)
+my_bool is_general_event_allowed_by_custom(const struct mysql_event_general *event)
 {
-  const char *p= event->general_query;
-  unsigned int i=0;
-
-  if (event->general_query_length < 10)
-    return 0;
-
-  for (i=0; i< event->general_query_length - 6; p++, i++) {
-    if ((*p == 'g' || *p == 'G') &&
-        (*(p+1) == 'l' || *(p+1) == 'L') &&
-        (*(p+2) == 'o' || *(p+2) == 'O') &&
-        (*(p+3) == 'b' || *(p+3) == 'B') &&
-        (*(p+4) == 'a' || *(p+4) == 'A') &&
-        (*(p+5) == 'l' || *(p+5) == 'L')) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-static
-int is_general_event_allowed_by_custom(const struct mysql_event_general *event)
-{
-  enum enum_sql_command sql_command= get_sql_command(event->general_sql_command.str);
-
-  switch (sql_command) {
-  case SQLCOM_SET_OPTION:
-    return is_global_set(event);
-  case SQLCOM_CREATE_TABLE:
-  case SQLCOM_ALTER_TABLE:
-  case SQLCOM_DROP_TABLE:
-  case SQLCOM_CREATE_INDEX:
-  case SQLCOM_DROP_INDEX:
-  case SQLCOM_GRANT:
-  case SQLCOM_REVOKE:
-  case SQLCOM_REVOKE_ALL:
-  case SQLCOM_TRUNCATE:
-  case SQLCOM_CREATE_USER:
-  case SQLCOM_DROP_USER:
-  case SQLCOM_CREATE_DB:
-  case SQLCOM_ALTER_DB:
-  case SQLCOM_DROP_DB:
-  case SQLCOM_CREATE_SERVER:
-  case SQLCOM_ALTER_SERVER:
-  case SQLCOM_DROP_SERVER:
-    return 1;
-  default:
-    return 0;
-  }
+  int event_idx = find_log_event_by_name(event->general_sql_command.str);
+  return (event_idx != -1) && (event_flags[event_idx].flag == 1);
 }
 
 static
@@ -1018,6 +1210,11 @@ static MYSQL_SYSVAR_ENUM(syslog_priority, audit_log_syslog_priority,
        &audit_log_syslog_priority_typelib);
 
 
+static MYSQL_SYSVAR_STR(event, audit_log_event,
+  PLUGIN_VAR_RQCMDARG,
+  "The event needs to be logged.", audit_log_event_validate, audit_log_event_update, audit_log_event_str);
+
+
 static struct st_mysql_sys_var* audit_log_system_variables[] =
 {
   MYSQL_SYSVAR(file),
@@ -1032,6 +1229,7 @@ static struct st_mysql_sys_var* audit_log_system_variables[] =
   MYSQL_SYSVAR(syslog_ident),
   MYSQL_SYSVAR(syslog_priority),
   MYSQL_SYSVAR(syslog_facility),
+  MYSQL_SYSVAR(event),
   NULL
 };
 
