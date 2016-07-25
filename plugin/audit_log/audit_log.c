@@ -73,7 +73,7 @@ unsigned int class_mask[]=
 #define MAX_EVENT_NAME_LEN 63
 char *audit_log_event;
 char audit_log_event_str[4096] = {0};
-char audit_log_event_tmp[2048] = {0};
+char audit_log_event_tmp[4096] = {0};
 
 struct st_event_flag {
   const char *str;
