@@ -321,9 +321,14 @@ int check_log_event(const char* event) {
   int event_idx;
 
   /** delete all space */
-  while (*event && *event != ' ') {
+  while (*event && *event != ' ' && ((p - audit_log_event_tmp) < 4090)) {
     *p++ = *event++;
   }
+  if (p - audit_log_event_tmp >= 4090) {
+    fprintf(stderr, "[ERROR] Audit Log: audit_log_event option too large\n");
+    return 1;
+  }
+
   *p = '\0';
 
   reset_log_event_tmp_flag();
