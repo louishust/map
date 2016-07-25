@@ -84,6 +84,12 @@ typedef struct st_event_flag EVENT_FLAG;
 
 /** this array should be sorted in lexicographical order */
 EVENT_FLAG event_flags[] = {
+  {"Debug", 0, 0},
+  {"InitDB", 0, 0},
+  {"Kill", 0, 0},
+  {"Ping", 0, 0},
+  {"Shutdown", 0, 0},
+  {"Sleep", 0, 0},
   {"alter_db", 0, 0},
   {"alter_event", 0, 0},
   {"alter_function", 0, 0},
@@ -156,7 +162,6 @@ EVENT_FLAG event_flags[] = {
   {"savepoint", 0, 0},
   {"select", 0, 0},
   {"set_option", 0, 0},
-  {"signal", 0, 0},
   {"show_authors", 0, 0 },
   {"show_binlog_events", 0, 0},
   {"show_binlogs", 0, 0},
@@ -173,8 +178,8 @@ EVENT_FLAG event_flags[] = {
   {"show_engine_logs", 0, 0},
   {"show_engine_mutex", 0, 0},
   {"show_engine_status", 0, 0},
-  {"show_events", 0, 0},
   {"show_errors", 0, 0},
+  {"show_events", 0, 0},
   {"show_fields", 0, 0},
   {"show_function_code", 0, 0},
   {"show_function_status", 0, 0},
@@ -199,6 +204,7 @@ EVENT_FLAG event_flags[] = {
   {"show_triggers", 0, 0},
   {"show_variables", 0, 0},
   {"show_warnings", 0, 0},
+  {"signal", 0, 0},
   {"slave_start", 0, 0},
   {"slave_stop", 0, 0},
   {"stmt_close", 0, 0},
@@ -297,6 +303,16 @@ void reset_log_event_flag_mask()
     (MYSQL_AUDIT_GENERAL_CLASSMASK | MYSQL_AUDIT_CONNECTION_CLASSMASK) : (MYSQL_AUDIT_GENERAL_CLASSMASK);
 }
 
+int check_event_flags_order() {
+  int i;
+  for (i = 0; i < event_flag_num - 1; i++) {
+    if (strcmp(event_flags[i].str, event_flags[i+1].str) >= 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 int check_log_event(const char* event) {
   char *p = audit_log_event_tmp;
   char *q = p;
@@ -334,6 +350,8 @@ int check_log_event(const char* event) {
 
     if (!*p)
       break;
+    else
+      p++;
   }
 
   return 0;
@@ -926,6 +944,12 @@ int reopen_log_file()
 
 my_bool init_audit_log_event_flags()
 {
+  if (check_event_flags_order()) {
+    fprintf_timestamp(stderr);
+    fprintf(stderr, "[ERROR] Audit Log: event order is wrong\n");
+    return(1);
+  }
+
   if (check_log_event(audit_log_event)) {
     fprintf_timestamp(stderr);
     fprintf(stderr, "[ERROR] Audit Log: wrong audit_log_event\n");
@@ -972,7 +996,6 @@ int audit_log_plugin_deinit(void *arg __attribute__((unused)))
   return(0);
 }
 
-
 static
 int is_event_class_allowed_by_policy(unsigned int class,
                                      enum audit_log_policy_t policy)
@@ -980,10 +1003,26 @@ int is_event_class_allowed_by_policy(unsigned int class,
   return (class_mask[policy] & (1 << class)) != 0;
 }
 
+const char* init_db = "InitDB";
+
 static
 my_bool is_general_event_allowed_by_custom(const struct mysql_event_general *event)
 {
-  int event_idx = find_log_event_by_name(event->general_sql_command.str);
+  const char *event_name = NULL;
+  int event_idx = -1;
+  if (event->general_sql_command.length) {
+    event_name = event->general_sql_command.str;
+  } else if (event->general_command_length){
+    event_name = event->general_command;
+    if (event->general_command_length ==7 &&
+        strcmp(event_name, "Init DB") == 0) {
+      event_name = init_db;
+    }
+  } else {
+    return 0;
+  }
+
+  event_idx = find_log_event_by_name(event_name);
   return (event_idx != -1) && (event_flags[event_idx].flag == 1);
 }
 
