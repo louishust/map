@@ -72,7 +72,8 @@ LOGGER_HANDLE *logger_open(const char *path,
                            unsigned long long size_limit,
                            unsigned int rotations,
                            int thread_safe,
-                           logger_prolog_func_t header);
+                           logger_prolog_func_t header,
+                           logger_epilog_func_t footer);
 int logger_close(LOGGER_HANDLE *log, logger_epilog_func_t footer);
 int logger_vprintf(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
 int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...);
@@ -84,6 +85,7 @@ int logger_reopen(LOGGER_HANDLE *log, logger_prolog_func_t header,
                   logger_epilog_func_t footer);
 void logger_set_size_limit(LOGGER_HANDLE *log, unsigned long long size_limit);
 void logger_set_rotations(LOGGER_HANDLE *log, unsigned int rotations);
+void logger_set_footer(LOGGER_HANDLE *log, logger_epilog_func_t footer);
 
 #ifdef __cplusplus
 }

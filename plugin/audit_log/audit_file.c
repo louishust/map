@@ -83,7 +83,7 @@ audit_handler_t *audit_handler_file_open(audit_handler_file_config_t *opts)
     }
     data->logger= logger_open(opts->name, opts->rotate_on_size,
                               opts->rotate_on_size ? opts->rotations : 0,
-                              !opts->use_buffer, opts->header);
+                              !opts->use_buffer, opts->header, opts->footer);
     if (data->logger == NULL)
     {
       goto error;

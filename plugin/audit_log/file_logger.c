@@ -74,6 +74,8 @@ typedef struct logger_handle_st {
   size_t path_len;
   mysql_mutex_t lock;
   int thread_safe;
+  logger_prolog_func_t header;
+  logger_epilog_func_t footer;
 } LSFS;
 
 
@@ -88,7 +90,8 @@ LOGGER_HANDLE *logger_open(const char *path,
                            unsigned long long size_limit,
                            unsigned int rotations,
                            int thread_safe,
-                           logger_prolog_func_t header)
+                           logger_prolog_func_t header,
+                           logger_epilog_func_t footer)
 {
   LOGGER_HANDLE new_log, *l_perm;
   MY_STAT stat_arg;
@@ -142,7 +145,11 @@ LOGGER_HANDLE *logger_open(const char *path,
                      MY_MUTEX_INIT_FAST);
 
   len= header(&stat_arg, buf, sizeof(buf));
-  my_write(l_perm->file, (uchar *)buf, len, MYF(0));
+  if (stat_arg.st_size == 0)
+    my_write(l_perm->file, (uchar *)buf, len, MYF(0));
+
+  l_perm->header= header;
+  l_perm->footer= footer;
 
   return l_perm;
 }
@@ -152,10 +159,9 @@ int logger_close(LOGGER_HANDLE *log, logger_epilog_func_t footer)
   int result;
   File file= log->file;
   char buf[128];
-  size_t len;
 
-  len= footer(buf, sizeof(buf));
-  my_write(file, (uchar *)buf, len, MYF(0));
+  footer(buf, sizeof(buf));
+  /* my_write(file, (uchar *)buf, len, MYF(0)); */
 
   flogger_mutex_destroy(log);
   my_free(log);
@@ -175,8 +181,8 @@ int logger_reopen(LOGGER_HANDLE *log, logger_prolog_func_t header,
 
   flogger_mutex_lock(log);
 
-  len= footer(buf, sizeof(buf));
-  my_write(log->file, (uchar *)buf, len, MYF(0));
+  footer(buf, sizeof(buf));
+  /* my_write(log->file, (uchar *)buf, len, MYF(0)); */
 
   if ((result= my_close(log->file, MYF(0))))
   {
@@ -198,7 +204,8 @@ int logger_reopen(LOGGER_HANDLE *log, logger_prolog_func_t header,
   }
 
   len= header(&stat_arg, buf, sizeof(buf));
-  my_write(log->file, (uchar *)buf, len, MYF(0));
+  if (stat_arg.st_size == 0)
+    my_write(log->file, (uchar *)buf, len, MYF(0));
 
 error:
   flogger_mutex_unlock(log);
@@ -220,6 +227,9 @@ static int do_rotate(LOGGER_HANDLE *log)
   int result;
   unsigned int i;
   char *buf_old, *buf_new, *tmp;
+  char buf[128];
+  size_t len;
+  MY_STAT stat_arg;
 
   if (log->rotations == 0)
     return 0;
@@ -238,11 +248,25 @@ static int do_rotate(LOGGER_HANDLE *log)
     buf_old= buf_new;
     buf_new= tmp;
   }
+
+  len= log->footer(buf, sizeof(buf));
+  my_write(log->file, (uchar *)buf, len, MYF(0));
   if ((result= my_close(log->file, MYF(0))))
     goto exit;
   namebuf[log->path_len]= 0;
   result= my_rename(namebuf, logname(log, log->path, 1), MYF(0));
   log->file= my_open(namebuf, LOG_FLAGS, MYF(0));
+  if (log->file < 0)
+    goto exit;
+
+  if (my_fstat(log->file, &stat_arg, MYF(0)))
+  {
+    my_close(log->file, MYF(0));
+    goto exit;
+  }
+
+  len= log->header(&stat_arg, buf, sizeof(buf));
+  my_write(log->file, (uchar *)buf, len, MYF(0));
 exit:
   errno= my_errno;
   return log->file < 0 || result;
