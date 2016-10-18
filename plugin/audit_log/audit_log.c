@@ -19,6 +19,7 @@
 #include <stdio.h>
 
 #include <my_global.h>
+#include <m_ctype.h>
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
 #include <typelib.h>
@@ -59,6 +60,7 @@ char *audit_log_syslog_ident;
 char default_audit_log_syslog_ident[] = "greatopensource-audit";
 ulong audit_log_syslog_facility= 0;
 ulong audit_log_syslog_priority= 0;
+char audit_log_base64_encode= FALSE;
 
 unsigned int class_mask[]=
 {
@@ -587,6 +589,67 @@ char *escape_string(const char *in, size_t inlen,
   return out;
 }
 
+static const char basis_64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+size_t Base64encode_len(size_t len)
+{
+    return ((len + 2) / 3 * 4) + 1;
+}
+
+static
+char* base64_encode_string(const char *string, size_t inlen,
+                          char *out, size_t outlen)
+{
+    size_t i;
+    char *p;
+
+    size_t a = ((outlen - 1) / 4) * 3;
+
+    p = out;
+    for (i = 0; (i < a - 2) && (i < inlen - 2); i += 3) {
+      *p++ = basis_64[(string[i] >> 2) & 0x3F];
+      *p++ = basis_64[((string[i] & 0x3) << 4) |
+        ((int) (string[i + 1] & 0xF0) >> 4)];
+      *p++ = basis_64[((string[i + 1] & 0xF) << 2) |
+        ((int) (string[i + 2] & 0xC0) >> 6)];
+      *p++ = basis_64[string[i + 2] & 0x3F];
+    }
+
+    if (i >= a - 2) {
+      *p++ = '\0';
+      return out;
+    }
+
+    if (i < inlen) {
+      *p++ = basis_64[(string[i] >> 2) & 0x3F];
+      if (i == (inlen - 1)) {
+        *p++ = basis_64[((string[i] & 0x3) << 4)];
+        *p++ = '=';
+      }
+      else {
+        *p++ = basis_64[((string[i] & 0x3) << 4) |
+          ((int) (string[i + 1] & 0xF0) >> 4)];
+        *p++ = basis_64[((string[i + 1] & 0xF) << 2)];
+      }
+      *p++ = '=';
+    }
+
+    *p++ = '\0';
+    return out;
+}
+
+static
+char* encode_sqltext(const char *in, size_t inlen,
+                    char *out, size_t outlen,
+                    char **endptr)
+{
+  if (audit_log_base64_encode) {
+    return base64_encode_string(in, inlen, out, outlen);
+  } else {
+    return escape_string(in, inlen, out, outlen, endptr);
+  }
+}
+
 
 static
 void audit_log_write(const char *buf, size_t len)
@@ -694,6 +757,7 @@ size_t audit_log_general_record(char *buf, size_t buflen,
                      "  COMMAND_CLASS=\"%s\"\n"
                      "  CONNECTION_ID=\"%lu\"\n"
                      "  STATUS=\"%d\"\n"
+                     "  SQLCS=\"%s\"\n"
                      "  SQLTEXT=\"%s\"\n"
                      "  USER=\"%s\"\n"
                      "  HOST=\"%s\"\n"
@@ -708,6 +772,7 @@ size_t audit_log_general_record(char *buf, size_t buflen,
                      "  <COMMAND_CLASS>%s</COMMAND_CLASS>\n"
                      "  <CONNECTION_ID>%lu</CONNECTION_ID>\n"
                      "  <STATUS>%d</STATUS>\n"
+                     "  <SQLCS>%s</SQLCS>\n"
                      "  <SQLTEXT>%s</SQLTEXT>\n"
                      "  <USER>%s</USER>\n"
                      "  <HOST>%s</HOST>\n"
@@ -722,13 +787,14 @@ size_t audit_log_general_record(char *buf, size_t buflen,
                        "\"command_class\":\"%s\","
                        "\"connection_id\":\"%lu\","
                        "\"status\":%d,"
+                       "\"sqlcs\":\"%s\","
                        "\"sqltext\":\"%s\","
                        "\"user\":\"%s\","
                        "\"host\":\"%s\","
                        "\"os_user\":\"%s\","
                        "\"ip\":\"%s\"}}\n",
 
-                     "\"%s\",\"%s\",\"%s\",\"%s\",\"%lu\",%d,\"%s\",\"%s\","
+                     "\"%s\",\"%s\",\"%s\",\"%s\",\"%lu\",%d,\"%s\",\"%s\",\"%s\","
                      "\"%s\",\"%s\",\"%s\"\n" };
 
   return my_snprintf(buf, buflen,
@@ -739,7 +805,8 @@ size_t audit_log_general_record(char *buf, size_t buflen,
                      event->general_sql_command.str,
                      event->general_thread_id,
                      status,
-                     escape_string(event->general_query,
+                     event->general_charset->csname,
+                     encode_sqltext(event->general_query,
                                    event->general_query_length,
                                    query, sizeof(query), NULL),
                      escape_string(event->general_user,
@@ -1258,6 +1325,9 @@ static MYSQL_SYSVAR_STR(event, audit_log_event,
   PLUGIN_VAR_RQCMDARG,
   "The event needs to be logged.", audit_log_event_validate, audit_log_event_update, audit_log_event_str);
 
+static MYSQL_SYSVAR_BOOL(encode, audit_log_base64_encode,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       "The audit log sqltext encode with base64.", NULL, NULL, 0);
 
 static struct st_mysql_sys_var* audit_log_system_variables[] =
 {
@@ -1274,6 +1344,7 @@ static struct st_mysql_sys_var* audit_log_system_variables[] =
   MYSQL_SYSVAR(syslog_priority),
   MYSQL_SYSVAR(syslog_facility),
   MYSQL_SYSVAR(event),
+  MYSQL_SYSVAR(encode),
   NULL
 };
 
