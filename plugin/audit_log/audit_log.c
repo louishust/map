@@ -749,50 +749,71 @@ size_t audit_log_general_record(char *buf, size_t buflen,
   char timestamp[MAX_TIMESTAMP_SIZE];
   char query[512], tmp[128];
   char *endptr= tmp, *endtmp= tmp + sizeof(tmp);
+  const char *new_xml_format[] = {
+                      "<AUDIT_RECORD>\n"
+                      "  <NAME>%s</NAME>\n"
+                      "  <RECORD>%s</RECORD>\n"
+                      "  <TIMESTAMP>%s</TIMESTAMP>\n"
+                      "  <COMMAND_CLASS>%s</COMMAND_CLASS>\n"
+                      "  <CONNECTION_ID>%lu</CONNECTION_ID>\n"
+                      "  <STATUS>%d</STATUS>\n"
+                      "  <SQLCS>%s</SQLCS>\n"
+                      "  <SQLTEXT>%s</SQLTEXT>\n"
+                      "  <USER>%s</USER>\n"
+                      "  <HOST>%s</HOST>\n"
+                      "  <OS_USER>%s</OS_USER>\n"
+                      "  <IP>%s</IP>\n"
+                      "</AUDIT_RECORD>\n",
+
+                      "<AUDIT_RECORD>\n"
+                      "  <NAME>%s</NAME>\n"
+                      "  <RECORD>%s</RECORD>\n"
+                      "  <TIMESTAMP>%s</TIMESTAMP>\n"
+                      "  <COMMAND_CLASS>%s</COMMAND_CLASS>\n"
+                      "  <CONNECTION_ID>%lu</CONNECTION_ID>\n"
+                      "  <STATUS>%d</STATUS>\n"
+                      "  <SQLCS>%s</SQLCS>\n"
+                      "  <SQLTEXT encode=\"base64\">%s</SQLTEXT>\n"
+                      "  <USER>%s</USER>\n"
+                      "  <HOST>%s</HOST>\n"
+                      "  <OS_USER>%s</OS_USER>\n"
+                      "  <IP>%s</IP>\n"
+                      "</AUDIT_RECORD>\n",
+
+  };
+
+  int xml_index = (audit_log_base64_encode == FALSE ? 0 : 1);
   const char *format_string[] = {
-                     "<AUDIT_RECORD\n"
-                     "  NAME=\"%s\"\n"
-                     "  RECORD=\"%s\"\n"
-                     "  TIMESTAMP=\"%s\"\n"
-                     "  COMMAND_CLASS=\"%s\"\n"
-                     "  CONNECTION_ID=\"%lu\"\n"
-                     "  STATUS=\"%d\"\n"
-                     "  SQLCS=\"%s\"\n"
-                     "  SQLTEXT=\"%s\"\n"
-                     "  USER=\"%s\"\n"
-                     "  HOST=\"%s\"\n"
-                     "  OS_USER=\"%s\"\n"
-                     "  IP=\"%s\"\n"
-                     "/>\n",
+                      "<AUDIT_RECORD\n"
+                      "  NAME=\"%s\"\n"
+                      "  RECORD=\"%s\"\n"
+                      "  TIMESTAMP=\"%s\"\n"
+                      "  COMMAND_CLASS=\"%s\"\n"
+                      "  CONNECTION_ID=\"%lu\"\n"
+                      "  STATUS=\"%d\"\n"
+                      "  SQLCS=\"%s\"\n"
+                      "  SQLTEXT=\"%s\"\n"
+                      "  USER=\"%s\"\n"
+                      "  HOST=\"%s\"\n"
+                      "  OS_USER=\"%s\"\n"
+                      "  IP=\"%s\"\n"
+                      "/>\n",
 
-                     "<AUDIT_RECORD>\n"
-                     "  <NAME>%s</NAME>\n"
-                     "  <RECORD>%s</RECORD>\n"
-                     "  <TIMESTAMP>%s</TIMESTAMP>\n"
-                     "  <COMMAND_CLASS>%s</COMMAND_CLASS>\n"
-                     "  <CONNECTION_ID>%lu</CONNECTION_ID>\n"
-                     "  <STATUS>%d</STATUS>\n"
-                     "  <SQLCS>%s</SQLCS>\n"
-                     "  <SQLTEXT>%s</SQLTEXT>\n"
-                     "  <USER>%s</USER>\n"
-                     "  <HOST>%s</HOST>\n"
-                     "  <OS_USER>%s</OS_USER>\n"
-                     "  <IP>%s</IP>\n"
-                     "</AUDIT_RECORD>\n",
+                      new_xml_format[xml_index],
 
-                     "{\"audit_record\":"
-                       "{\"name\":\"%s\","
-                       "\"record\":\"%s\","
-                       "\"timestamp\":\"%s\","
-                       "\"command_class\":\"%s\","
-                       "\"connection_id\":\"%lu\","
-                       "\"status\":%d,"
-                       "\"sqlcs\":\"%s\","
-                       "\"sqltext\":\"%s\","
-                       "\"user\":\"%s\","
-                       "\"host\":\"%s\","
-                       "\"os_user\":\"%s\","
-                       "\"ip\":\"%s\"}}\n",
+                      "{\"audit_record\":"
+                      "{\"name\":\"%s\","
+                      "\"record\":\"%s\","
+                      "\"timestamp\":\"%s\","
+                      "\"command_class\":\"%s\","
+                      "\"connection_id\":\"%lu\","
+                      "\"status\":%d,"
+                      "\"sqlcs\":\"%s\","
+                      "\"sqltext\":\"%s\","
+                      "\"user\":\"%s\","
+                      "\"host\":\"%s\","
+                      "\"os_user\":\"%s\","
+                      "\"ip\":\"%s\"}}\n",
 
                      "\"%s\",\"%s\",\"%s\",\"%s\",\"%lu\",%d,\"%s\",\"%s\",\"%s\","
                      "\"%s\",\"%s\",\"%s\"\n" };
